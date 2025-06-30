@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Results - {{ results.student.name }}</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <div class="container my-5">
+        <h1 class="text-center mb-4">🎓 Result Summary</h1>
+
+        <!-- Student Info -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                Student Info
+            </div>
+            <div class="card-body">
+                <p><strong>Name:</strong> {{ results.student.name }}</p>
+                <p><strong>Roll Number:</strong> {{ results.student.roll_number }}</p>
+                <p><strong>Section:</strong> {{ results.student.section }}</p>
+                <p><strong>Result:</strong> {{ results.launch_info.launch_name }}</p>
+                <div class="mt-3">
+                    <a class="btn btn-success me-2" href="{{ url_for('download_pdf', student_id=results.student.id) }}" target="_blank">
+                        <i class="fas fa-download me-2"></i>Download PDF
+                    </a>
+                    <a class="btn btn-secondary" href="{{ url_for('index') }}">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Login
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                Subject-wise Performance
+            </div>
+            <div class="card-body table-responsive">
+                <table class="table table-striped">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Subject</th>
+                            <th>Internal</th>
+                            <th>External</th>
+                            <th>Total</th>
+                            <th>Max Marks</th>
+                            <th>Percentage</th>
+                            <th>Grade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for subject in results.subjects %}
+                        <tr>
+                            <td>{{ subject.subject_name }}</td>
+                            <td>
+                                {% if subject.internal_max > 0 %}
+                                    {{ subject.internal_marks }}/{{ subject.internal_max }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if subject.external_max > 0 %}
+                                    {{ subject.external_marks }}/{{ subject.external_max }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td>{{ subject.final_marks }}</td>
+                            <td>{{ subject.max_marks }}</td>
+                            <td>{{ subject.percentage }}%</td>
+                            <td>{{ subject.grade }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="table-primary fw-bold">
+                            <td>OVERALL</td>
+                            <td colspan="2">---</td>
+                            <td>{{ results.overall.total_marks }}</td>
+                            <td>{{ results.overall.total_possible }}</td>
+                            <td>{{ results.overall.percentage }}%</td>
+                            <td>{{ results.overall.grade }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Performance Analysis -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                Performance Analysis
+            </div>
+            <div class="card-body">
+                {% set avg = (results.subjects | sum(attribute='percentage')) / results.subjects|length %}
+                {% set strongest = results.subjects | max(attribute='percentage') %}
+                {% set weakest = results.subjects | min(attribute='percentage') %}
+
+                <p><strong>Overall Status: </strong>
+                    {% if results.overall.is_passing %}
+                        ✅ Passed
+                    {% else %}
+                        ❌ Failed
+                    {% endif %}
+                </p>
+
+                <p><strong>Average Subject Percentage:</strong> {{ "%.1f"|format(avg) }}%</p>
+                <p><strong>Strongest Subject:</strong> {{ strongest.subject_name }} ({{ strongest.percentage }}%)</p>
+                <p><strong>Weakest Subject:</strong> {{ weakest.subject_name }} ({{ weakest.percentage }}%)</p>
+
+                <p><strong>Recommendation:</strong>
+                    {% if weakest.percentage < 60 %}
+                        Focus on {{ weakest.subject_name }} to improve your overall progress.
+                    {% elif avg >= 85 %}
+                        Excellent performance! Keep up the great work.
+                    {% elif avg >= 75 %}
+                        Good work! Try to improve further for excellence.
+                    {% else %}
+                        Stay consistent and focus on all subjects equally.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning">
+                Performance Chart
+            </div>
+            <div class="card-body">
+                <canvas id="performanceChart" height="120"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Chart Setup -->
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        fetch("/chart_data/{{ results.student.id }}")
+            .then(res => res.json())
+            .then(data => {
+                console.log('Chart data received:', data);
+                const ctx = document.getElementById('performanceChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Percentage',
+                            data: data.data,
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    callback: function (val) {
+                                        return val + '%';
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => {
+                document.getElementById('performanceChart').outerHTML = "<p class='text-muted'>Unable to load chart.</p>";
+                console.error("Chart error:", error);
+            });
+    });
+    </script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
